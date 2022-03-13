@@ -6,6 +6,7 @@
 # 96915 Tomás Nunes
 # 95597 João Silveira
 
+from copy import deepcopy
 import sys
 from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 
@@ -29,34 +30,34 @@ class Board:
     Representação interna de um tabuleiro de Numbrix.
     """
 
-    def __init__(self, N: int, board: list):
+    def __init__(self, N: int, numbers: dict):
         self.N = N
-        self.board = board
+        self.numbers = numbers
 
     def get_number(self, row: int, col: int) -> int:
         """
         Devolve o valor na respetiva posição do tabuleiro.
         """
-        return self.board[row][col]
+        return self.numbers[(row, col)] if (row, col) in self.numbers.keys() else 0
 
     def adjacent_vertical_numbers(self, row: int, col: int) -> (int, int):
         """
         Devolve os valores imediatamente abaixo e acima,
         respectivamente.
         """
-        return (self.board[row + 1][col] if row + 1 < self.N else None, self.board[row - 1][col] if row - 1 >= 0 else None)
+        return (self.numbers[(row + 1, col)] if row + 1 < self.N else None, self.numbers[(row - 1, col)] if row - 1 >= 0 else None)
 
     def adjacent_horizontal_numbers(self, row: int, col: int) -> (int, int):
         """
         Devolve os valores imediatamente à esquerda e à direita,
         respectivamente.
         """
-        return (self.board[row][col - 1] if col - 1 >= 0 else None, self.board[row][col + 1] if col + 1 < self.N else None)
+        return (self.numbers[(row, col - 1)] if col - 1 >= 0 else None, self.numbers[(row, col + 1)] if col + 1 < self.N else None)
 
     def to_string(self):
-        return '\n'.join([''.join(['{:4}'.format(item) for item in row]) for row in self.board])
+        return '\n'.join([''.join(['{:4}'.format(self.numbers[(i, j)]) for j in range(self.N)]) for i in range(self.N)])
 
-    @staticmethod
+    @ staticmethod
     def parse_instance(filename: str):
         """
         Lê o ficheiro cujo caminho é passado como argumento e retorna
@@ -64,9 +65,15 @@ class Board:
         """
         with open(filename, "r") as f:
             N = int(f.readline())
-            board = Board(
-                N, [[int(num) for num in f.readline().split("\t")] for _ in range(N)])
+            numbers = {}
+            for i in range(N):
+                line = f.readline().split("\t")
+                for j in range(N):
+                    if line[j] != 0:
+                        numbers[(i, j)] = int(line[j])
+            board = Board(N, numbers)
             f.close()
+
         return board
 
     # TODO: outros metodos da classe
@@ -79,16 +86,26 @@ class Numbrix(Problem):
         pass
 
     def actions(self, state: NumbrixState):
-        """ Retorna uma lista de ações que podem ser executadas a
-        partir do estado passado como argumento. """
+        """ 
+        Retorna uma lista de ações que podem ser executadas a
+        partir do estado passado como argumento. 
+        """
+        # for i linhas
+        #   for j in colunas
+        #       if board[i][j] == 0:
+        #           for adj_v get posible1
+        #           for adj_h get posible 2
+        #           return intersect posible1 posible2
         # TODO
         pass
 
     def result(self, state: NumbrixState, action):
-        """ Retorna o estado resultante de executar a 'action' sobre
+        """ 
+        Retorna o estado resultante de executar a 'action' sobre
         'state' passado como argumento. A ação a executar deve ser uma
         das presentes na lista obtida pela execução de
-        self.actions(state). """
+        self.actions(state). 
+        """
         # TODO
         pass
 
@@ -111,6 +128,9 @@ if __name__ == "__main__":
     # Ler o ficheiro de input de sys.argv[1]
     board = Board.parse_instance(sys.argv[1])
     print("Initial:\n", board.to_string(), sep="")
+
+    print(f"Vertical Adj. {board.adjacent_vertical_numbers(1,1)}")
+    print(f"Horizontal Adj. {board.adjacent_horizontal_numbers(1,1)}")
 
     problem = Numbrix(board)
     s0 = NumbrixState(board)
