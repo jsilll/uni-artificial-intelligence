@@ -22,10 +22,11 @@ class NumbrixState:
     def __lt__(self, other):
         return self.id < other.id
 
-    def fill_number(self, row: int, col: int, number: int):
+    def fill(self, row: int, col: int, number: int):
         """
         Preenche um quadrado no tabuleiro
         """
+        
         state_copy = deepcopy(self)
         state_copy.board.squares[row][col] = number
         state_copy.board.numbers[number - 1] = (row, col)
@@ -34,50 +35,56 @@ class NumbrixState:
 
 
 class Board:
-    def __init__(self, N: int, squares: list):
+    def __init__(self, n: int, squares: list):
         """
         Representação interna de um tabuleiro de Numbrix.
         """
-        self.N = N
-        self.zeros = 0
+        self.n = n
+        self.n_squares = n**2
+        self.n_zeros = 0
         self.squares = squares
-        self.numbers = [None] * N**2
+        self.numbers = [None] * self.n_squares
 
-        for i in range(N):
-            for j in range(N):
-                if squares[i][j] == 0:
-                    self.zeros = self.zeros + 1
-                else:
+        self.zeros = sum(map(lambda x: x == 0, [square for row in squares for square in row]))
+
+        # TODO: Improve this code?
+        for i in range(self.n):
+            for j in range(self.n):
+                if squares[i][j] != 0:
                     self.numbers[self.squares[i][j] - 1] = (i, j)
 
     def get_number(self, row: int, col: int) -> int:
         """
         Devolve o valor na respetiva posição do tabuleiro.
         """
+        
         return self.squares[row][col]
 
-    def adjacent_vertical_numbers(self, row: int, col: int) -> (int, int):
+    def adjacent_vertical_numbers(self, row: int, col: int):
         """
         Devolve os valores imediatamente abaixo e acima,
         respectivamente.
         """
-        down = self.squares[row + 1][col] if row + 1 < self.N else None
+        
+        down = self.squares[row + 1][col] if row + 1 < self.n else None
         up = self.squares[row - 1][col] if row - 1 >= 0 else None
         return (down, up)
 
-    def adjacent_horizontal_numbers(self, row: int, col: int) -> (int, int):
+    def adjacent_horizontal_numbers(self, row: int, col: int):
         """
         Devolve os valores imediatamente à esquerda e à direita,
         respectivamente.
         """
+        
         left = self.squares[row][col - 1] if col - 1 >= 0 else None
-        right = self.squares[row][col + 1] if col + 1 < self.N else None
+        right = self.squares[row][col + 1] if col + 1 < self.n else None
         return (left, right)
 
     def to_string(self):
         """
         Print do tabuleiro
         """
+        
         return '\n'.join([''.join(['{:4}'.format(item) for item in row]) for row in self.squares])
 
     @staticmethod
@@ -86,6 +93,7 @@ class Board:
         Lê o ficheiro cujo caminho é passado como argumento e retorna
         uma instância da classe Board.
         """
+
         with open(filename, "r") as f:
             N = int(f.readline())
             board = Board(
@@ -99,6 +107,7 @@ class Numbrix(Problem):
         """
         O construtor especifica o estado inicial.
         """
+        
         self.initial = NumbrixState(board)
 
     def actions(self, state: NumbrixState) -> list:
@@ -106,9 +115,11 @@ class Numbrix(Problem):
         Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento.
         """
+        
+        # TODO: Improve this code 
         res = []
-        for i in range(state.board.N):
-            for j in range(state.board.N):
+        for i in range(state.board.n):
+            for j in range(state.board.n):
                 # Para todas as posicoes ainda nao preenchidas
                 if state.board.squares[i][j] == 0:
 
@@ -119,7 +130,7 @@ class Numbrix(Problem):
                     for neigh in valid_neighbors:
                         # Este numero nao pode ser N^2
                         # Este numero nao pode ja ter sido usado noutro lado
-                        if neigh < state.board.N**2 and state.board.numbers[neigh] == None:
+                        if neigh < state.board.n_squares and state.board.numbers[neigh] == None:
                             if neigh + 1 not in possible_values.keys():
                                 possible_values[neigh + 1] = 1
                             else:
@@ -145,9 +156,9 @@ class Numbrix(Problem):
                     if 1 in possible_values.keys():
                         res.append((i, j, 1))
                         del possible_values[1]
-                    if state.board.N**2 in possible_values.keys():
-                        res.append((i, j, state.board.N**2))
-                        del possible_values[state.board.N**2]
+                    if state.board.n_squares in possible_values.keys():
+                        res.append((i, j, state.board.n_squares))
+                        del possible_values[state.board.n_squares]
 
                     n_edges = neighbors.count(None)
                     # Numero no meio do tabuleiro (0 Nones)
@@ -191,10 +202,9 @@ class Numbrix(Problem):
         das presentes na lista obtida pela execução de
         self.actions(state). 
         """
+
         row, col, number = action
-        # Mooshak TODO: bug isto nao acontece sempre com actions validas
-        # if action in self.actions(state):
-        return state.fill_number(row, col, number)
+        return state.fill(row, col, number)
 
     def goal_test(self, state: NumbrixState) -> bool:
         """ 
@@ -202,29 +212,42 @@ class Numbrix(Problem):
         um estado objetivo. Deve verificar se todas as posições do tabuleiro
         estão preenchidas com uma sequência de números adjacentes. 
         """
+        
         # TODO: mesmo fazer esta funcao por causa do Mooshak
         return state.board.zeros == 0
 
     def h(self, node: Node):
-        """ Função heuristica utilizada para a procura A*. """
+        """ 
+        Função heuristica utilizada para a procura A*. 
+        """
+        
         filled_positions = list(filter(lambda x: x != None, node.state.board.numbers))
         
-        estimate = 0
-        for i in range(len(filled_positions) - 1):
-            estimate += abs(filled_positions[i][0] - filled_positions[i + 1][0]) +\
-            abs(filled_positions[i][1] - filled_positions[i + 1][1]) - 1
-        
-        return max(estimate, node.state.board.zeros)
+        estimated = 0
+        for i in range(len(filled_positions) - 1): # TODO: performance can be improved, iterate only on number gaps
+            x1 = filled_positions[i][0]
+            x2 = filled_positions[i + 1][0]
+            y1 = filled_positions[i][1]
+            y2 = filled_positions[i + 1][1]
+
+            man_distance = abs(x1 - x2) + abs(y1 - y2) - 1
+            num_distance = abs(node.state.board.squares[x1][y1] - node.state.board.squares[x2][y2])
+            
+            if num_distance > man_distance:
+                return float("inf")
+            
+            estimated += man_distance
+
+        return node.state.board.zeros
 
 
 if __name__ == "__main__":
-    # Ler o ficheiro de input de sys.argv[1]
     board = Board.parse_instance(sys.argv[1])
     print("Initial:\n", board.to_string(), sep="")
 
     problem = Numbrix(board)
     s0 = NumbrixState(board)
-    print(s0.board.numbers)
+    print(problem.actions(s0))
 
     # s1 = problem.result(s0, (2, 2, 1))
     # s2 = problem.result(s1, (0, 2, 3))
@@ -239,5 +262,6 @@ if __name__ == "__main__":
     # goal_node = greedy_search(problem, problem.h)
     # goal_node = recursive_best_first_search(problem, problem.h)
     goal_node = astar_search(problem, problem.h, display=True)
+
     print("Is goal?", problem.goal_test(goal_node.state))
     print("Solution:\n", goal_node.state.board.to_string(), sep="")
