@@ -8,8 +8,9 @@
 
 import sys
 from copy import deepcopy
-from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 
+from matplotlib.pyplot import fill
+from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 
 class NumbrixState:
     state_id = 0
@@ -26,7 +27,7 @@ class NumbrixState:
         """
         Preenche um quadrado no tabuleiro
         """
-        
+
         state_copy = deepcopy(self)
         state_copy.board.squares[row][col] = number
         state_copy.board.numbers[number - 1] = (row, col)
@@ -39,15 +40,13 @@ class Board:
         """
         Representação interna de um tabuleiro de Numbrix.
         """
+
         self.n = n
-        self.n_squares = n**2
-        self.n_zeros = 0
+        self.n_squares = n * n
         self.squares = squares
         self.numbers = [None] * self.n_squares
-
         self.zeros = sum(map(lambda x: x == 0, [square for row in squares for square in row]))
 
-        # TODO: Improve this code?
         for i in range(self.n):
             for j in range(self.n):
                 if squares[i][j] != 0:
@@ -57,7 +56,7 @@ class Board:
         """
         Devolve o valor na respetiva posição do tabuleiro.
         """
-        
+
         return self.squares[row][col]
 
     def adjacent_vertical_numbers(self, row: int, col: int):
@@ -65,7 +64,7 @@ class Board:
         Devolve os valores imediatamente abaixo e acima,
         respectivamente.
         """
-        
+
         down = self.squares[row + 1][col] if row + 1 < self.n else None
         up = self.squares[row - 1][col] if row - 1 >= 0 else None
         return (down, up)
@@ -75,16 +74,21 @@ class Board:
         Devolve os valores imediatamente à esquerda e à direita,
         respectivamente.
         """
-        
+
         left = self.squares[row][col - 1] if col - 1 >= 0 else None
         right = self.squares[row][col + 1] if col + 1 < self.n else None
         return (left, right)
+
+    def get_neighbors(self, row : int, col : int):
+        left, right = self.adjacent_horizontal_numbers(row, col)
+        down, up = self.adjacent_vertical_numbers(row, col)
+        return (left, right, down, up)
 
     def to_string(self):
         """
         Print do tabuleiro
         """
-        
+
         return '\n'.join([''.join(['{:4}'.format(item) for item in row]) for row in self.squares])
 
     @staticmethod
@@ -96,8 +100,7 @@ class Board:
 
         with open(filename, "r") as f:
             N = int(f.readline())
-            board = Board(
-                N, [[int(num) for num in f.readline().split("\t")] for _ in range(N)])
+            board = Board(N, [[int(num) for num in f.readline().split("\t")] for _ in range(N)])
             f.close()
         return board
 
@@ -107,7 +110,7 @@ class Numbrix(Problem):
         """
         O construtor especifica o estado inicial.
         """
-        
+
         self.initial = NumbrixState(board)
 
     def actions(self, state: NumbrixState) -> list:
@@ -115,128 +118,142 @@ class Numbrix(Problem):
         Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento.
         """
-        
-        # TODO: Improve this code 
         res = []
         for i in range(state.board.n):
             for j in range(state.board.n):
-                # Para todas as posicoes ainda nao preenchidas
                 if state.board.squares[i][j] == 0:
-
-                    neighbors = list(state.board.adjacent_vertical_numbers(i, j)) + list(state.board.adjacent_horizontal_numbers(i, j))
-                    valid_neighbors = list(filter(lambda x: x != None and x != 0, neighbors))
-
-                    possible_values = {}
-                    for neigh in valid_neighbors:
-                        # Este numero nao pode ser N^2
-                        # Este numero nao pode ja ter sido usado noutro lado
-                        if neigh < state.board.n_squares and state.board.numbers[neigh] == None:
-                            if neigh + 1 not in possible_values.keys():
-                                possible_values[neigh + 1] = 1
-                            else:
-                                possible_values[neigh + 1] = possible_values[neigh + 1] + 1
-                        # Este numero nao pode ser 1
-                        # Este numero nao pode ja ter sido usado noutro lado
-                        if neigh != 1 and state.board.numbers[neigh - 2] == None:
-                            if neigh - 1 not in possible_values.keys():
-                                possible_values[neigh - 1] = 1
-                            else:
-                                possible_values[neigh - 1] = possible_values[neigh - 1] + 1
-
-                    # Vamos satisfazer pelo menos um vizinho em cada acao
-                    # Drawback, o nosso programa nao faz numbrix nao preenchidos
-                    
-                    # 0 Vizinhos -> Skip, nao estamos a perder solucoes no espaco de todas as solucoes
-                    n_neighbors = len(valid_neighbors)
-                    if n_neighbors == 0:
-                        continue
-
-                    # 1 ou N^2
-                    # Satisfazer a exatamente 1
-                    if 1 in possible_values.keys():
-                        res.append((i, j, 1))
-                        del possible_values[1]
-                    if state.board.n_squares in possible_values.keys():
-                        res.append((i, j, state.board.n_squares))
-                        del possible_values[state.board.n_squares]
-
-                    n_edges = neighbors.count(None)
-                    # Numero no meio do tabuleiro (0 Nones)
-                    if n_edges == 0:
-                        # 1 Vizinho, 2 Vizinhos 3 Vizinhos
-                        if n_neighbors <= 3:
-                            # Tem de satisfazer pelo menos 1 deles
-                            for possible_value in filter(lambda x: x[1] >= 1, possible_values.items()):
-                                res.append((i, j, possible_value[0]))
-                        # 4 Vizinhos
-                        else: 
-                            # Satisfazer a exatamente 2
-                            for possible_value in filter(lambda x: x[1] == 2, possible_values.items()):
-                                res.append((i, j, possible_value[0]))
-                    
-                    # Numero na edge (1 None)
-                    elif n_edges == 1:
-                        # 1 vizinhos 2 vizinhos
-                        if n_neighbors <= 2:
-                            # Tem de satisfazer pelo menos 1 deles
-                            for possible_value in filter(lambda x: x[1] >= 1, possible_values.items()):
-                                res.append((i, j, possible_value[0]))
-                        # 3 vizinhos
-                        else:
-                            # Satisfazer a exatamente 2
-                            for possible_value in filter(lambda x: x[1] == 2, possible_values.items()):
-                                res.append((i, j, possible_value[0]))
-
-                    # Numero na esquina (2 Nones)
-                    elif n_edges == 2:
-                        # Satisfazer sempre o numero de vizinhos que tens
-                        for possible_value in filter(lambda x: x[1] == n_neighbors, possible_values.items()):
-                            res.append((i, j, possible_value[0]))
-                        
+                    neighbors = state.board.get_neighbors(i, j)
+                    n_valid_neighbors = len([n for n in neighbors if n != None and n != 0])
+                    possible_actions_sq = [action for action in self.get_possible_values(i, j, state)]
+                    if n_valid_neighbors > 1 and possible_actions_sq == []:
+                        return []
+                    res += possible_actions_sq
         return res
 
+    def get_possible_values(self, row: int, col: int, state: NumbrixState):
+        """
+        Returns a list of possible values for a given square.
+        This square's value must always satisfy at least 1 adjacent square.
+        """
+
+        if state.board.squares[row][col] != 0:
+            return
+
+        neighbors = list(state.board.adjacent_vertical_numbers(row, col)) + list(state.board.adjacent_horizontal_numbers(row, col))
+        valid_neighbors = list(filter(lambda x: x != None and x != 0, neighbors))
+
+        n_valid_neighbors = len(valid_neighbors)
+        n_edges = neighbors.count(None)
+
+        if n_valid_neighbors == 0:
+            return
+
+        candidates = {}
+        for neighbor in valid_neighbors:
+            candidate_upper = neighbor + 1
+            candidate_lower = neighbor - 1
+            if candidate_upper < state.board.n_squares + 1 and state.board.numbers[candidate_upper - 1] == None:
+                candidates[candidate_upper] = candidates.get(candidate_upper, 0) + 1
+            if candidate_lower > 0 and state.board.numbers[candidate_lower - 1] == None:
+                candidates[candidate_lower] = candidates.get(candidate_lower, 0) + 1
+
+        if 1 in candidates.keys():
+            yield (row, col, 1)
+            del candidates[1]
+
+        if state.board.n_squares in candidates.keys():
+            yield (row, col, state.board.n_squares)
+            del candidates[state.board.n_squares]
+
+        if n_edges == 0:
+            if n_valid_neighbors <= 3:
+                for possible_value in candidates.items():
+                    yield (row, col, possible_value[0])
+            else:
+                for possible_value in filter(lambda x: x[1] == 2, candidates.items()):
+                    yield (row, col, possible_value[0])
+        elif n_edges == 1:
+            if n_valid_neighbors <= 2:
+                for possible_value in candidates.items():
+                    yield (row, col, possible_value[0])
+            else:
+                for possible_value in filter(lambda x: x[1] == 2, candidates.items()):
+                    yield (row, col, possible_value[0])
+        elif n_edges == 2:
+            for possible_value in filter(lambda x: x[1] == n_valid_neighbors, candidates.items()):
+                yield (row, col, possible_value[0])
+
+
     def result(self, state: NumbrixState, action) -> NumbrixState:
-        """ 
+        """
         Retorna o estado resultante de executar a 'action' sobre
         'state' passado como argumento. A ação a executar deve ser uma
         das presentes na lista obtida pela execução de
-        self.actions(state). 
+        self.actions(state).
         """
 
         row, col, number = action
         return state.fill(row, col, number)
 
     def goal_test(self, state: NumbrixState) -> bool:
-        """ 
+        """
         Retorna True se e só se o estado passado como argumento é
         um estado objetivo. Deve verificar se todas as posições do tabuleiro
-        estão preenchidas com uma sequência de números adjacentes. 
+        estão preenchidas com uma sequência de números adjacentes.
         """
-        
-        # TODO: mesmo fazer esta funcao por causa do Mooshak
-        return state.board.zeros == 0
 
+        if state.board.zeros != 0:
+            return False
+        for i in range(1, state.board.n_squares):
+            x1 = state.board.numbers[i][0]
+            y1 = state.board.numbers[i][1]
+            x2 = state.board.numbers[i - 1][0]
+            y2 = state.board.numbers[i - 1][1]
+            man_distance = abs(x1 - x2) + abs(y1 - y2) - 1
+            if man_distance > 1:
+                return False
+        return True
+
+    # TODO: performance can be improved, iterate only on number gaps
     def h(self, node: Node):
-        """ 
-        Função heuristica utilizada para a procura A*. 
         """
-        
-        filled_positions = list(filter(lambda x: x != None, node.state.board.numbers))
-        
-        estimated = 0
-        for i in range(len(filled_positions) - 1): # TODO: performance can be improved, iterate only on number gaps
+        Função heuristica utilizada para a procura A*.
+        """
+
+        filled_positions = [x for x in  node.state.board.numbers if x != None]
+
+        for i in range(len(filled_positions) - 1):
             x1 = filled_positions[i][0]
             x2 = filled_positions[i + 1][0]
             y1 = filled_positions[i][1]
             y2 = filled_positions[i + 1][1]
 
-            man_distance = abs(x1 - x2) + abs(y1 - y2) - 1
             num_distance = abs(node.state.board.squares[x1][y1] - node.state.board.squares[x2][y2])
-            
-            if num_distance > man_distance:
+            if num_distance == 1:
+                continue
+
+            man_distance = abs(x1 - x2) + abs(y1 - y2)
+            if man_distance > num_distance:
                 return float("inf")
-            
-            estimated += man_distance
+
+        for i in range(len(filled_positions)):
+            x = filled_positions[i][0]
+            y = filled_positions[i][1]
+
+            n = node.state.board.squares[x][y]
+            neighbors = node.state.board.get_neighbors(x, y)
+
+            n_zeros_neighbors = len([neigh for neigh in neighbors if neigh == 0])
+            n_valid_neighbors = len([neigh for neigh in neighbors if neigh != 0 and neigh != None and abs(neigh - n) == 1])
+
+            if n == 1 or n == node.state.board.n_squares:
+                if n_zeros_neighbors == 0 and n_valid_neighbors != 1:
+                    return float("inf")
+            else:
+                if n_zeros_neighbors == 1 and n_valid_neighbors < 1:
+                    return float("inf")
+                elif n_zeros_neighbors == 0 and n_valid_neighbors < 2:
+                    return float("inf")
 
         return node.state.board.zeros
 
@@ -259,9 +276,12 @@ if __name__ == "__main__":
 
     # goal_node = breadth_first_tree_search(problem)
     # goal_node = depth_first_tree_search(problem)
-    # goal_node = greedy_search(problem, problem.h)
+    goal_node = greedy_search(problem, problem.h)
     # goal_node = recursive_best_first_search(problem, problem.h)
-    goal_node = astar_search(problem, problem.h, display=True)
+    # goal_node = astar_search(problem, problem.h, display=True)
 
-    print("Is goal?", problem.goal_test(goal_node.state))
-    print("Solution:\n", goal_node.state.board.to_string(), sep="")
+    if goal_node != None:
+        print("Is goal?", problem.goal_test(goal_node.state))
+        print("Solution:\n", goal_node.state.board.to_string(), sep="")
+    else:
+        print("Found no solution!")
