@@ -1,22 +1,16 @@
-# numbrix.py: Template para implementação do projeto de Inteligência Artificial 2021/2022.
-# Devem alterar as classes e funções neste ficheiro de acordo com as instruções do enunciado.
-# Além das funções e classes já definidas, podem acrescentar outras que considerem pertinentes.
-
 # Grupo 19:
 # 96915 Tomás Nunes
 # 95597 João Silveira
 
-from difflib import diff_bytes
+from ssl import ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE
+import _pickle as pickle
+import cProfile
+import pstats
 import sys
 from copy import deepcopy
+from search import Problem, Node, astar_search, depth_first_graph_search, greedy_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 
 # from matplotlib.pyplot import fill
-from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
-
-
-def manhattan_distance(x1, x2):
-    return sum(abs(val1 - val2) for val1, val2 in zip(x1, x2))
-
 
 class NumbrixState:
     state_id = 0
@@ -24,7 +18,6 @@ class NumbrixState:
     def __init__(self, board):
         self.id = NumbrixState.state_id
         NumbrixState.state_id += 1
-
         self.board = board
 
     def __lt__(self, other):
@@ -34,7 +27,7 @@ class NumbrixState:
         """
         Preenche um quadrado no tabuleiro
         """
-        copy = deepcopy(self)
+        copy = pickle.loads(pickle.dumps(self, - 1))
         copy.board.fill(row, col, number)
         return copy
 
@@ -44,45 +37,39 @@ class Board:
         """
         Representação interna de um tabuleiro de Numbrix.
         """
-        self.n = n                                                                                                                # Constant value
-        # Constant value
-        self.n_squares = n * n
-        # Number of Zeros on board
-        self.n_zeros = sum(
-            map(lambda x: x == 0, [square for row in squares for square in row]))
-        # Square Indexed Matrix
-        self.squares = squares
+        self.n = n                                                                                  # Constant value
+        self.n_squares = n * n                                                                      # Constant value
+        self.n_zeros = sum(map(lambda x: x == 0, [square for row in squares for square in row]))    # Number of Zeros on board
+        self.squares = squares                                                                      # Square Indexed Matrix
+        self.numbers = [None] * self.n_squares                                                      # Number Indexed Array
+        for row in range(self.n):
+            for col in range(self.n):
+                if squares[row][col] != 0:
+                    self.numbers[self.squares[row][col] - 1] = (row, col)
 
-        # Number Indexed Array
-        self.numbers = [None] * self.n_squares
-        for i in range(self.n):
-            for j in range(self.n):
-                if squares[i][j] != 0:
-                    self.numbers[self.squares[i][j] - 1] = (i, j)
+        self.placed_numbers = []
+        self.missing_numbers = []
+        for number in range(self.n_squares):
+            if self.numbers[number] == None:
+                self.missing_numbers.append(number + 1)
+            else:
+                self.placed_numbers.append(number + 1)
 
-        # Number Indexed Array of possible actions                                                                # Number Indexed Array of Actions
-        self.possible_actions = [self.actions_for_number(
-            number + 1) if self.numbers[number] == None else [] for number in range(self.n_squares)]
-
-    def adjacent_vertical_numbers(self, row: int, col: int):
+    def adjacent_vertical_numbers(self, row: int, col: int) -> tuple[int, int]:
         """
         Devolve os valores imediatamente abaixo e acima,
         respectivamente.
         """
-        down = self.squares[row + 1][col] if row + 1 < self.n else None
-        up = self.squares[row - 1][col] if row - 1 >= 0 else None
-        return (down, up)
+        return (self.squares[row + 1][col] if row + 1 < self.n else None, self.squares[row - 1][col] if row - 1 >= 0 else None)
 
-    def adjacent_horizontal_numbers(self, row: int, col: int):
+    def adjacent_horizontal_numbers(self, row: int, col: int) -> tuple[int, int]:
         """
         Devolve os valores imediatamente à esquerda e à direita,
         respectivamente.
         """
-        left = self.squares[row][col - 1] if col - 1 >= 0 else None
-        right = self.squares[row][col + 1] if col + 1 < self.n else None
-        return (left, right)
+        return (self.squares[row][col - 1] if col - 1 >= 0 else None, self.squares[row][col + 1] if col + 1 < self.n else None)
 
-    def adjacent_all_numbers(self, row: int, col: int):
+    def adjacent_all_numbers(self, row: int, col: int) -> tuple[int, int]:
         """
         Devolve os valores imediatamente à esquerda, direita,
         cima e baixo respetivamente.
@@ -91,25 +78,15 @@ class Board:
         down, up = self.adjacent_vertical_numbers(row, col)
         return (left, right, down, up)
 
-    def fill(self, row: int, col: int, number: int):
+    def fill(self, row: int, col: int, number: int) -> None:
         """
         Preenche o tabuleiro com um numero numa dada posicao
         """
-        self.n_zeros = self.n_zeros - 1
-        self.squares[row][col] = number
+        self.n_zeros = self.n_zeros - 1       
+        self.squares[row][col] = number       
         self.numbers[number - 1] = (row, col)
-
-        self.possible_actions[number - 1] = []
-        for i in range(self.n_squares):
-            self.possible_actions[i] = [
-                action for action in self.possible_actions[i] if action[0] != row or action[1] != col]
-
-        if number != 1 and self.numbers[number - 2] == None:
-            self.possible_actions[number -
-                                  2] = self.actions_for_number(number - 1)
-
-        if number != self.n_squares and self.numbers[number] == None:
-            self.possible_actions[number] = self.actions_for_number(number + 1)
+        self.missing_numbers.remove(number)
+        self.placed_numbers.append(number)
 
     def actions_for_number(self, number) -> list:
         """
@@ -149,9 +126,10 @@ class Board:
             if up == 0:
                 possible_right.append((x1 - 1, y1, number))
 
-        intersection = [
-            number for number in possible_left if number in possible_right]
-        return intersection if (left_placed and right_placed) or intersection else possible_left + possible_right
+        intersection = [number for number in possible_left if number in possible_right] # TODO: improve complexity
+        if intersection == [] and left_placed and right_placed:
+            return [None]
+        return intersection if intersection else possible_left + possible_right
 
     def to_string(self):
         """
@@ -167,11 +145,9 @@ class Board:
         """
         with open(filename, "r") as f:
             N = int(f.readline())
-            board = Board(
-                N, [[int(num) for num in f.readline().split("\t")] for _ in range(N)])
+            board = Board(N, [[int(num) for num in f.readline().split("\t")] for _ in range(N)])
             f.close()
         return board
-
 
 class Numbrix(Problem):
     def __init__(self, board: Board):
@@ -185,14 +161,76 @@ class Numbrix(Problem):
         Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento.
         """
-        n_minimum_actions = float("inf")
         minimum_actions = []
-        for number in range(state.board.n_squares):
-            n_actions = len(state.board.possible_actions[number])
-            if n_actions and n_actions < n_minimum_actions:
+        n_minimum_actions = float("inf")
+        for number in state.board.missing_numbers:
+            actions = state.board.actions_for_number(number)
+            n_actions = len(actions)
+            if actions == [None]:
+                return []
+            if n_actions == 1:
+                res = [action for action in actions if (self.action_distance_possible(state, action))]
+                return res # and self.testPositions(state.board, action))] # and self.testPositions(state.board, action))]
+            if n_actions != 0 and n_actions < n_minimum_actions:
                 n_minimum_actions = n_actions
-                minimum_actions = state.board.possible_actions[number]
-        return minimum_actions
+                minimum_actions = actions
+        res = [action for action in minimum_actions if (self.action_distance_possible(state, action))]
+        return res # and self.testPositions(state.board, action))] # and self.testPositions(state.board, action))]
+
+    def testPositions(self, board:Board, action:tuple) -> bool:
+
+        def test_helper(action:tuple , board:Board):
+            row, col, number = action
+            lists = board.adjacent_all_numbers(row, col)
+            n_zeros = lists.count(0)
+            valid_neighbors = len([number for number in lists if number != None and (number == number + 1 or number == number - 1) and number !=0])
+            if valid_neighbors == 2 or n_zeros >= 2:
+                return True
+            elif valid_neighbors == 1 and n_zeros != 0:
+                return True
+            elif (number == 1 or number == board.n_squares) and valid_neighbors == 1:
+                return True
+            elif (number == 1 or number == board.n_squares) and n_zeros == 1:
+                return True
+            return False
+
+        row, col, number = action
+        a = 0
+        
+        # Check if n matches the conditions to fill the position (x,y)
+        if test_helper(action, board):
+            a=1
+
+        # Force n to be in that position (x,y)
+        board.squares[row][col] = number
+
+        # Adjacent numbers (left and up) of n 
+        left = board.adjacent_horizontal_numbers(row,col)[0] 
+        up =  board.adjacent_vertical_numbers(row,col)[1]
+
+        # Get the tuples with the adjacent numbers
+        check_left = (row,col - 1,left)
+        check_up = (row - 1,col,up)
+
+        # If p matches the conditions to fill the position (a == 1) and once we forced n to be in that position (x,y), then
+        # We try to check the adjacent numbers of the adjacents - left and up - of (x,y,n) = p
+        if(a and test_helper(check_left, board) and test_helper(check_up,board)):
+            board.squares[row][col] = 0
+            return True
+            
+        # If the adjacent numbers of the adjacents of (x,y,n) = p don't match the conditions 
+        board.squares[row][col] = 0
+        return False
+
+    def action_distance_possible(self, state: NumbrixState, action : tuple):
+        row1, col1, number1 = action
+        for number2 in state.board.placed_numbers:
+            row2, col2 = state.board.numbers[number2 - 1]
+            manhattan_distance = abs(row1 - row2) + abs(col1 - col2)
+            numeric_distance = abs(number1 - number2)
+            if manhattan_distance > numeric_distance:
+                return False  
+        return True
 
     def result(self, state: NumbrixState, action) -> NumbrixState:
         """
@@ -201,8 +239,7 @@ class Numbrix(Problem):
         das presentes na lista obtida pela execução de
         self.actions(state).
         """
-        row, col, number = action
-        return state.fill(row, col, number)
+        return state.fill(action[0], action[1], action[2])
 
     def goal_test(self, state: NumbrixState) -> bool:
         """
@@ -212,80 +249,30 @@ class Numbrix(Problem):
         """
         if state.board.n_zeros != 0:
             return False
-
         for i in range(state.board.n_squares - 1):
             x1 = state.board.numbers[i][0]
             y1 = state.board.numbers[i][1]
             x2 = state.board.numbers[i + 1][0]
             y2 = state.board.numbers[i + 1][1]
-            if manhattan_distance((x1, y1), (x2, y2)) > 1:
+            manhattan_distance = abs(x1 - x2) + abs(y1 - y2) - 1
+            if manhattan_distance > 1:
                 return False
-
         return True
 
     def h(self, node: Node):
         """
         Função heuristica utilizada para a procura A*.
         """
-        filled_positions = [x for x in node.state.board.numbers if x != None]
-        for i in range(len(filled_positions) - 1):
-            x1 = filled_positions[i][0]
-            y1 = filled_positions[i][1]
-            x2 = filled_positions[i + 1][0]
-            y2 = filled_positions[i + 1][1]
-
-            num_distance = abs(
-                node.state.board.squares[x1][y1] - node.state.board.squares[x2][y2])
-            man_distance = manhattan_distance((x1, y1), (x2, y2))
-            if man_distance > num_distance:
-                return float("inf")
-
-        # Like an early goal test ??
-        for i in range(len(filled_positions)):
-            x = filled_positions[i][0]
-            y = filled_positions[i][1]
-
-            n = node.state.board.squares[x][y]
-            neighbors = node.state.board.adjacent_all_numbers(x, y)
-
-            n_zeros_neighbors = len(
-                [neigh for neigh in neighbors if neigh == 0])
-            n_valid_neighbors = len(
-                [neigh for neigh in neighbors if neigh != 0 and neigh != None and abs(neigh - n) == 1])
-
-            if n == 1 or n == node.state.board.n_squares:
-                if n_zeros_neighbors == 0 and n_valid_neighbors != 1:
-                    return float("inf")
-            else:
-                if n_zeros_neighbors == 1 and n_valid_neighbors < 1:
-                    return float("inf")
-                elif n_zeros_neighbors == 0 and n_valid_neighbors < 2:
-                    return float("inf")
-
-        # Completely surrounded zeros that are impossible to fill
-        for i in range(node.state.board.n):
-            for j in range(node.state.board.n):
-                if node.state.board.squares[i][j] == 0:
-                    neighbors = node.state.board.adjacent_all_numbers(i, j)
-                    if len(list(filter(lambda x: x != 0, neighbors))) == 4:
-                        num_neighbors = list(
-                            filter(lambda x: x != 0 and x != None, neighbors))
-                        n = len(num_neighbors)
-                        diff = float("inf")
-                        for k in range(n - 1):
-                            for l in range(k + 1, n):
-                                diff = min(
-                                    abs(num_neighbors[k] - num_neighbors[l]), diff)
-                        if diff != 2:
-                            return float("inf")
-
         return node.state.board.n_zeros
 
-
 if __name__ == "__main__":
-    board = Board.parse_instance(sys.argv[1])
-    problem = Numbrix(board)
-    goal_node = greedy_search(problem, problem.h)
+    board : Board = Board.parse_instance(sys.argv[1])
+    problem : Problem = Numbrix(board)
+    with cProfile.Profile() as profile:
+        goal_node = depth_first_graph_search(problem)
+        stats = pstats.Stats(profile)
+        stats.sort_stats(pstats.SortKey.TIME)
+        stats.print_stats()
     if goal_node != None:
         print(goal_node.state.board.to_string(), sep="")
     else:
