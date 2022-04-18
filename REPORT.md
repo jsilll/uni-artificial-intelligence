@@ -1,0 +1,4 @@
+- Processo da Restrição das ações
+    - Escolher numero e relacao com MRV e CSPs
+    - Colocar logica heuristica no h() vs. nas actions()
+        - Uma vez que as heuristicas sao todas binarias (poss., ou imp.) é melhor nas actions()
