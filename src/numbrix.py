@@ -2,15 +2,13 @@
 # 96915 Tomás Nunes
 # 95597 João Silveira
 
-from ssl import ALERT_DESCRIPTION_BAD_CERTIFICATE_STATUS_RESPONSE
+# from copy import deepcopy
+# from matplotlib.pyplot import fill
+from search import Problem, Node, astar_search, depth_first_graph_search, greedy_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 import _pickle as pickle
 import cProfile
 import pstats
 import sys
-from copy import deepcopy
-from search import Problem, Node, astar_search, depth_first_graph_search, greedy_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
-
-# from matplotlib.pyplot import fill
 
 class NumbrixState:
     state_id = 0
@@ -47,29 +45,29 @@ class Board:
                 if squares[row][col] != 0:
                     self.numbers[self.squares[row][col] - 1] = (row, col)
 
-        self.placed_numbers = []
-        self.missing_numbers = []
+        self.placed_numbers = []                                                                    # Array of already placed number
+        self.missing_numbers = []                                                                   # Array of missing numbers
         for number in range(self.n_squares):
             if self.numbers[number] == None:
                 self.missing_numbers.append(number + 1)
             else:
                 self.placed_numbers.append(number + 1)
 
-    def adjacent_vertical_numbers(self, row: int, col: int) -> tuple[int, int]:
+    def adjacent_vertical_numbers(self, row: int, col: int) -> tuple:
         """
         Devolve os valores imediatamente abaixo e acima,
         respectivamente.
         """
         return (self.squares[row + 1][col] if row + 1 < self.n else None, self.squares[row - 1][col] if row - 1 >= 0 else None)
 
-    def adjacent_horizontal_numbers(self, row: int, col: int) -> tuple[int, int]:
+    def adjacent_horizontal_numbers(self, row: int, col: int) -> tuple:
         """
         Devolve os valores imediatamente à esquerda e à direita,
         respectivamente.
         """
         return (self.squares[row][col - 1] if col - 1 >= 0 else None, self.squares[row][col + 1] if col + 1 < self.n else None)
 
-    def adjacent_all_numbers(self, row: int, col: int) -> tuple[int, int]:
+    def adjacent_all_numbers(self, row: int, col: int) -> tuple:
         """
         Devolve os valores imediatamente à esquerda, direita,
         cima e baixo respetivamente.
@@ -88,7 +86,7 @@ class Board:
         self.missing_numbers.remove(number)
         self.placed_numbers.append(number)
 
-    def actions_for_number(self, number) -> list:
+    def actions_for_number(self, number : int) -> list:
         """
         Devolve um lista com todas as ações possíveis para um número
         """
@@ -96,6 +94,7 @@ class Board:
         left_placed = False
         if number != 1 and self.numbers[number - 2] != None:
             left_placed = True
+            
             x1 = self.numbers[number - 2][0]
             y1 = self.numbers[number - 2][1]
 
@@ -126,10 +125,71 @@ class Board:
             if up == 0:
                 possible_right.append((x1 - 1, y1, number))
 
-        intersection = [number for number in possible_left if number in possible_right] # TODO: improve complexity
-        if intersection == [] and left_placed and right_placed:
-            return [None]
-        return intersection if intersection else possible_left + possible_right
+        if not left_placed and not right_placed:
+            return []
+
+        if left_placed and right_placed:
+            intersection = [num for num in possible_left if num in possible_right]
+            res = [action for action in intersection if (self.validate_action_distance(action) and self.validate_action(action))]
+            return res if res else [None]
+
+        res = [action for action in possible_left + possible_right if (self.validate_action_distance(action) and self.validate_action(action))]
+        return res if res else [None]
+
+    def validate_action(self, action:tuple) -> bool:
+        """
+        Validates an action
+        """
+
+        def validate_position(action:tuple):
+            """
+            Validates a position
+            """
+            row, col, number = action
+            if number:
+                adj = self.adjacent_all_numbers(row, col)
+                n_zeros = adj.count(0)
+                n_valid_neighbors = len([number for neigh in adj if neigh != None and neigh != 0 and abs(number - neigh) == 1])
+                if n_valid_neighbors == 2 or n_zeros >= 2:
+                    return True
+                elif n_valid_neighbors == 1 and n_zeros > 0:
+                    return True
+                elif (number == 1 or number == self.n_squares) and (n_valid_neighbors == 1 or n_zeros == 1):
+                    return True
+                
+                return False
+            
+            return True
+
+        row, col, number = action
+        if validate_position(action):
+            self.squares[row][col] = number
+            left, right, down, up = self.adjacent_all_numbers(row, col)
+            check_left = (row, col - 1, left)
+            check_right = (row, col + 1, right)
+            check_down = (row + 1, col, down)
+            check_up = (row - 1, col, up)
+            
+            if (validate_position(check_left) and validate_position(check_right) and validate_position(check_down) and validate_position(check_up)):
+                self.squares[row][col] = 0
+                return True
+        
+        self.squares[row][col] = 0
+        return False
+
+    def validate_action_distance(self, action : tuple):
+        """
+        Check if manhattan distance of new action 
+        allows to complete the board successfuly
+        """
+        row1, col1, number1 = action
+        for number2 in self.placed_numbers:
+            row2, col2 = self.numbers[number2 - 1]
+            manhattan_distance = abs(row1 - row2) + abs(col1 - col2)
+            numeric_distance = abs(number1 - number2)
+            if manhattan_distance > numeric_distance:
+                return False  
+        return True
 
     def to_string(self):
         """
@@ -161,6 +221,9 @@ class Numbrix(Problem):
         Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento.
         """
+        if state.board.n_zeros == 0:
+            return []
+
         minimum_actions = []
         n_minimum_actions = float("inf")
         for number in state.board.missing_numbers:
@@ -169,68 +232,11 @@ class Numbrix(Problem):
             if actions == [None]:
                 return []
             if n_actions == 1:
-                res = [action for action in actions if (self.action_distance_possible(state, action))]
-                return res # and self.testPositions(state.board, action))] # and self.testPositions(state.board, action))]
+                return actions
             if n_actions != 0 and n_actions < n_minimum_actions:
                 n_minimum_actions = n_actions
                 minimum_actions = actions
-        res = [action for action in minimum_actions if (self.action_distance_possible(state, action))]
-        return res # and self.testPositions(state.board, action))] # and self.testPositions(state.board, action))]
-
-    def testPositions(self, board:Board, action:tuple) -> bool:
-
-        def test_helper(action:tuple , board:Board):
-            row, col, number = action
-            lists = board.adjacent_all_numbers(row, col)
-            n_zeros = lists.count(0)
-            valid_neighbors = len([number for number in lists if number != None and (number == number + 1 or number == number - 1) and number !=0])
-            if valid_neighbors == 2 or n_zeros >= 2:
-                return True
-            elif valid_neighbors == 1 and n_zeros != 0:
-                return True
-            elif (number == 1 or number == board.n_squares) and valid_neighbors == 1:
-                return True
-            elif (number == 1 or number == board.n_squares) and n_zeros == 1:
-                return True
-            return False
-
-        row, col, number = action
-        a = 0
-        
-        # Check if n matches the conditions to fill the position (x,y)
-        if test_helper(action, board):
-            a=1
-
-        # Force n to be in that position (x,y)
-        board.squares[row][col] = number
-
-        # Adjacent numbers (left and up) of n 
-        left = board.adjacent_horizontal_numbers(row,col)[0] 
-        up =  board.adjacent_vertical_numbers(row,col)[1]
-
-        # Get the tuples with the adjacent numbers
-        check_left = (row,col - 1,left)
-        check_up = (row - 1,col,up)
-
-        # If p matches the conditions to fill the position (a == 1) and once we forced n to be in that position (x,y), then
-        # We try to check the adjacent numbers of the adjacents - left and up - of (x,y,n) = p
-        if(a and test_helper(check_left, board) and test_helper(check_up,board)):
-            board.squares[row][col] = 0
-            return True
-            
-        # If the adjacent numbers of the adjacents of (x,y,n) = p don't match the conditions 
-        board.squares[row][col] = 0
-        return False
-
-    def action_distance_possible(self, state: NumbrixState, action : tuple):
-        row1, col1, number1 = action
-        for number2 in state.board.placed_numbers:
-            row2, col2 = state.board.numbers[number2 - 1]
-            manhattan_distance = abs(row1 - row2) + abs(col1 - col2)
-            numeric_distance = abs(number1 - number2)
-            if manhattan_distance > numeric_distance:
-                return False  
-        return True
+        return minimum_actions
 
     def result(self, state: NumbrixState, action) -> NumbrixState:
         """
@@ -269,7 +275,7 @@ if __name__ == "__main__":
     board : Board = Board.parse_instance(sys.argv[1])
     problem : Problem = Numbrix(board)
     with cProfile.Profile() as profile:
-        goal_node = depth_first_graph_search(problem)
+        goal_node = depth_first_tree_search(problem)
         stats = pstats.Stats(profile)
         stats.sort_stats(pstats.SortKey.TIME)
         stats.print_stats()
