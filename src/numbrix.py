@@ -5,13 +5,10 @@
 # from matplotlib.pyplot import fill
 from itertools import combinations
 from search import Problem, Node, astar_search, depth_first_graph_search, greedy_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
-import _pickle as pickle
-# import cProfile
-# import pstats
+import cProfile
+import pstats
+import pickle
 import sys
-
-from utils import F
-
 class NumbrixState:
     state_id = 0
 
@@ -22,14 +19,6 @@ class NumbrixState:
 
     def __lt__(self, other):
         return self.id < other.id
-
-    def fill(self, row: int, col: int, number: int):
-        """
-        Preenche um quadrado no tabuleiro
-        """
-        copy = pickle.loads(pickle.dumps(self, - 1))
-        copy.board.fill(row, col, number)
-        return copy
 
 
 class Board:
@@ -92,16 +81,6 @@ class Board:
         down, up = self.adjacent_vertical_numbers(row, col)
         return (left, right, down, up)
 
-    def fill(self, row: int, col: int, number: int) -> None:
-        """
-        Preenche o tabuleiro com um numero numa dada posicao
-        """
-        self.n_zeros = self.n_zeros - 1       
-        self.squares[row][col] = number       
-        self.numbers[number - 1] = (row, col)
-        self.missing_numbers.remove(number)
-        self.placed_numbers.append(number)
-
     def actions_for_number(self, number : int) -> list:
         """
         Devolve um lista com todas as ações possíveis para um número
@@ -161,14 +140,24 @@ class Board:
             if number == 0:
                 n_adj_nones = len([neigh for neigh in adj if neigh == None])
                 adj_numbers = [neigh for neigh in adj if neigh != None and neigh != 0]
-                if  n_adj_nones + len(adj_numbers) < 4:
+                blockers = n_adj_nones + len(adj_numbers)
+                if blockers < 3:
                     return True
                 elif self.numbers[0] == None and (2 in adj_numbers):
                     return True
                 elif self.numbers[self.n_squares - 1] == None and (self.n_squares - 1 in adj_numbers):
                     return True
-                for pair in combinations(adj_numbers, 2):
-                    if abs(pair[0] - pair[1]) == 2:
+                elif blockers == 3:
+                    if self.numbers[0] == None or self.numbers[self.n_squares - 1] == None:
+                        return True
+                    for adj_num in adj_numbers:
+                        if adj_num != 1 and self.numbers[adj_num - 2] == None:
+                            return True                            
+                        if adj_num != self.n_squares and self.numbers[adj_num] == None:
+                            return True
+                    return False
+                for pair1, pair2 in combinations(adj_numbers, 2):
+                    if (abs(pair1 - pair2) == 2) and ((min(pair1, pair2) + 1) in self.missing_numbers):
                         return True
                 return False
 
@@ -300,7 +289,16 @@ class Numbrix(Problem):
         das presentes na lista obtida pela execução de
         self.actions(state).
         """
-        return state.fill(action[0], action[1], action[2])
+        row, col, number = action
+
+        state_copy = pickle.loads(pickle.dumps(state, - 1))
+        state_copy.board.n_zeros = state_copy.board.n_zeros - 1       
+        state_copy.board.squares[row][col] = number       
+        state_copy.board.numbers[number - 1] = (row, col)
+        state_copy.board.missing_numbers.remove(number)
+        state_copy.board.placed_numbers.append(number)
+
+        return state_copy
 
     def goal_test(self, state: NumbrixState) -> bool:
         """
@@ -324,17 +322,23 @@ class Numbrix(Problem):
         """
         Função heuristica utilizada para a procura A*.
         """
-        return node.state.board.n_zeros
+        zeros_sum = 0
+        for row in range(node.state.board.n):
+            for col in range(node.state.board.n):
+                if node.state.board.squares[row][col] == 0:
+                    zeros_sum += len([adj for adj in node.state.board.adjacent_all_numbers(row, col) if adj == 0])
+
+        return zeros_sum
 
 if __name__ == "__main__":
     board : Board = Board.parse_instance(sys.argv[1])
     problem : Problem = Numbrix(board)
-    # with cProfile.Profile() as profile:
-    #     goal_node = depth_first_tree_search(problem)
-    #     stats = pstats.Stats(profile)
-    #     stats.sort_stats(pstats.SortKey.TIME)
-    #     stats.print_stats()
-    goal_node = depth_first_tree_search(problem)
+    with cProfile.Profile() as profile:
+        goal_node = greedy_search(problem)
+        stats = pstats.Stats(profile)
+        stats.sort_stats(pstats.SortKey.TIME)
+        stats.print_stats()
+    # goal_node = greedy_search(problem)
     if goal_node != None:
         print(goal_node.state.board.to_string(), sep="")
     else:
