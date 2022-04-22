@@ -148,12 +148,18 @@ class Board:
                 elif self.numbers[self.n_squares - 1] == None and (self.n_squares - 1 in adj_numbers):
                     return True
                 elif blockers == 3:
-                    if self.numbers[0] == None or self.numbers[self.n_squares - 1] == None:
+                    if self.numbers[0] == None:
+                        # TODO: manhattan distance to right number
+                        return True 
+                    if self.numbers[self.n_squares - 1] == None:
+                        # TODO: manhattan distance to left number
                         return True
                     for adj_num in adj_numbers:
                         if adj_num != 1 and self.numbers[adj_num - 2] == None:
+                            # TODO: manhattan distance to adj_num - 2
                             return True                            
                         if adj_num != self.n_squares and self.numbers[adj_num] == None:
+                            # TODO: manhattan distance to adj_num + 2
                             return True
                     return False
                 for pair1, pair2 in combinations(adj_numbers, 2):
