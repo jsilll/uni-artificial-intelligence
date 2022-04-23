@@ -5,6 +5,6 @@ done
 
 for input_file in tests/input*.txt; do
     bname=`basename $input_file`
-    nodes=`python3 src/numbrix.py $input_file | grep _pickle.loads | awk '{print $1}'`
+    nodes=`python3 src/numbrix.py $input_file --profiled | grep _pickle.loads | awk '{print $1}'`
     printf "%s: %d nodes\n" $bname $nodes 
 done
