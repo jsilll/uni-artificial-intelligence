@@ -176,7 +176,7 @@ class SimpleProblemSolvingAgentProgram:
 # Uninformed Search algorithms
 
 
-def breadth_first_tree_search(problem):
+def breadth_first_tree_search(problem, display = True):
     """
     [Figure 3.7]
     Search the shallowest nodes in the search tree first.
@@ -187,15 +187,20 @@ def breadth_first_tree_search(problem):
 
     frontier = deque([Node(problem.initial)])  # FIFO queue
 
+    explored = 0
     while frontier:
         node = frontier.popleft()
+        explored += 1
         if problem.goal_test(node.state):
+            if display:
+                print(explored, "paths have been expanded and",
+                      len(frontier), "paths remain in the frontier")
             return node
         frontier.extend(node.expand(problem))
     return None
 
 
-def depth_first_tree_search(problem):
+def depth_first_tree_search(problem, display = True):
     """
     [Figure 3.7]
     Search the deepest nodes in the search tree first.
@@ -206,9 +211,14 @@ def depth_first_tree_search(problem):
 
     frontier = [Node(problem.initial)]  # Stack
 
+    explored = 0
     while frontier:
         node = frontier.pop()
+        explored += 1
         if problem.goal_test(node.state):
+            if display:
+                print(explored, "paths have been expanded and",
+                      len(frontier), "paths remain in the frontier")
             return node
         frontier.extend(node.expand(problem))
     return None
@@ -412,10 +422,10 @@ greedy_best_first_graph_search = best_first_graph_search
 
 
 # Greedy best-first search is accomplished by specifying f(n) = h(n).
-def greedy_search(problem, h=None):
+def greedy_search(problem, h=None, display=True):
     """f(n) = h(n)"""
     h = memoize(h or problem.h, 'h')
-    return best_first_graph_search(problem, h)
+    return best_first_graph_search(problem, h, display=display)
 
 
 def astar_search(problem, h=None, display=False):
