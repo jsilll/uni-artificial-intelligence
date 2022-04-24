@@ -373,7 +373,10 @@ def run_profiled(search_algo):
     board = Board.parse_instance(sys.argv[1])
     problem = Numbrix(board)
     with cProfile.Profile() as profile:
-        goal_node = search_algo(problem)
+        if "--display" in sys.argv:
+            goal_node = search_algo(problem, display=True)
+        else:
+            goal_node = search_algo(problem, display=False)
         stats = pstats.Stats(profile)
         stats.sort_stats(pstats.SortKey.TIME)
         stats.print_stats()
@@ -382,16 +385,26 @@ def run_profiled(search_algo):
     else:
         print("Found no solution!")
 
-if __name__ == "__main__":
 
-    search_algo = greedy_search
+if __name__ == "__main__":
+    algo_names = ["--dfs", "--bfs", "--greedy", "--astar"]
+    algos = [depth_first_tree_search, breadth_first_tree_search, greedy_search, astar_search]
+    search_algo = depth_first_tree_search
+
+    for name, algo in zip(algo_names, algos):
+        if name in sys.argv:
+            search_algo = algo
+            break
 
     if "--profiled" in sys.argv:
         run_profiled(search_algo)
     else:
         board = Board.parse_instance(sys.argv[1])
         problem = Numbrix(board)
-        goal_node = search_algo(problem)
+        if "--display" in sys.argv:
+            goal_node = search_algo(problem, display=True)
+        else:
+            goal_node = search_algo(problem, display=False)
         if goal_node != None:
             print(goal_node.state.board, sep="")
         else:
