@@ -364,7 +364,7 @@ class Numbrix(Problem):
                 if node.state.board.get_number(row, col) == 0:
                     zeros_sum += len([adj for adj in node.state.board.adjacent_all_numbers(row, col) if adj == 0])
 
-        return max(0, node.state.board.n_zeros - 0.1 * zeros_sum)
+        return max(0, node.state.board.n_zeros - ALPHA * zeros_sum)
 
 def run_profiled(search_algo):
     import cProfile
@@ -390,10 +390,33 @@ if __name__ == "__main__":
     algo_names = ["--dfs", "--bfs", "--greedy", "--astar"]
     algos = [depth_first_tree_search, breadth_first_tree_search, greedy_search, astar_search]
     search_algo = depth_first_tree_search
+    
+    global ALPHA
 
     for name, algo in zip(algo_names, algos):
         if name in sys.argv:
             search_algo = algo
+            
+            if name == "--greedy" or name == "--astar":
+                
+                alpha_param_idx = 0
+
+                try:
+                    alpha_param_idx = sys.argv.index("--alpha")
+                except ValueError:
+                    ALPHA = 0.1
+                    continue
+
+                if len(sys.argv) > alpha_param_idx + 1:
+                    try:
+                        ALPHA = float(sys.argv[alpha_param_idx + 1])
+                    except ValueError:
+                        print("Invalid value for --alpha")
+                        sys.exit(0)
+                else:
+                    print("--alpha argument must be provided with a value")
+                    sys.exit(0)
+            
             break
 
     if "--profiled" in sys.argv:
