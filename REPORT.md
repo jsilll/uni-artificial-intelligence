@@ -29,7 +29,7 @@ Deve ser feita uma
 
 Análise crítica dos resultados obtidos, comparando em termos de 
 completude
-eficiência  
+eficiência
 
 Analisar a heurística implementada e eventualmente compará-la com outras heurísticas avaliadas
 
